@@ -2,6 +2,10 @@
 
 # Prerequisites
 You should have node and npm installed in your system.
+After install npm, need to install GULP following this steps:
+ * run `npm install gulp-cli -g`
+ * run `npm install gulp -D`
+ * Check if its installed with `gulp --help`
 
 # Download and Installation
 
