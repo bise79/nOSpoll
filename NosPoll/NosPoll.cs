@@ -1,7 +1,8 @@
-﻿using Neo.SmartContract.Framework;
+using Neo.SmartContract.Framework;
 using Neo.SmartContract.Framework.Services.Neo;
 using Neo.SmartContract.Framework.Services.System;
 using System;
+using System.Text;
 using System.ComponentModel;
 using System.Numerics;
 
@@ -9,19 +10,34 @@ namespace Neo.SmartContract
 {
     public class NosPoll : Framework.SmartContract
     {
-        public static byte[] OwnerAddr = "ATrzHaicmhRj15C3Vv6e6gLfLqhSD2PtTr".ToScriptHash();
-        
+               
         public static object Main(string operation, params object[] args)
         {
+            //  PARAMS detail
+            //args[0] = Owner Address
+            //args[1] = PollID
+            //args[2] = Option Voted
+            //args[3] = Question
+
+            // TODO: CHECK HOW TO CREATE A UNIQUE ID NUMBER
+            // IMPLEMENT ON CLICK EVENT 
+            //		Random r = new Random();
+			//		int rInt = r.Next(0, 1000);
+			// This will give us an unique number on SC
+
             Runtime.Notify("Main() operation", operation);
 
-            bool VoteEnabled;
-            bool VoteLimit;
-            string name;
-            string limitS;
-            string VotingFlag;
-            string voting = "voting";
-            byte[] CallerAddr;
+            string OwnerAdd = args[0]; 
+            string PollId = args[1];
+            string Question = args[2];
+            string VoteOption = args[3];
+            string[] strArray = new string[4];
+            string[] SCReturn = new string[3]
+            int OptionA;
+            int OptionB;
+            int[] Votes = new int [1];
+            string Question;
+
             
             // if the smart contract is invoked from Web app
             if (Runtime.Trigger == TriggerType.Application)
@@ -29,190 +45,145 @@ namespace Neo.SmartContract
 
                 switch (operation)
                 {
-                    // When startvoting event is pushed from Web
-                    case "StartVote":
-                        VotingFlag = "1";
-                        limitS = "1";
-                        VoteEnabled = IsVotingEnabled(voting);
-                        if (!VoteEnabled)
-                        {
-                            try
-                            {
-                                CallerAddr = (byte[]) args[0];
-                            }
-                            catch(FormatException e)
-                            {
-                                return e;
-                            }
-                            StartVote(VotingFlag,voting,limitS, CallerAddr);
-                        }
+                    case "CreatePoll":
+                    	strArray[0] = OwnerAdd;
+                        strArray[1] = CreatePoll(string OwnerAdd, string Question);
+                        strArray[2] = Question;
+                        strArray[3] = "0";
+                        strArray[4] = "0";
+                        return strArray; 
+                    case "AccessPoll":
+                        strArray=AccessPoll(string OwnerAdd, string PollID);
+                        SCReturn = PollInfo.Split("/");
+            			//SCReturn[0]=OwnerAdd
+            			//SCReturn[1]=PollID
+            			//SCReturn[2]=Question
+                        strArray[0] = SCReturn[0];
+                        strArray[1] = SCReturn[1];
+                        strArray[2] = SCReturn[2];
+                        strArray[3] = "0";
+                        strArray[4] = "0";
+                        return strArray;
+                    case "VotePoll":
+                        VotePoll(string OwnerAdd, string PollID, string VoteOption);
                         break;
-
-                    // When End voting event is pushed from Web					
-                    case "EndVote":
-                        VotingFlag = "0";
-                        VoteEnabled = IsVotingEnabled(voting);
-                        if (VoteEnabled)
-                        {
-                            try
-                            {
-                                CallerAddr = (byte[])args[0];
-                            }
-                            catch (FormatException e)
-                            {
-                                return e;
-                            }
-                            EndVote(VotingFlag, voting, CallerAddr);
-                        }
-                        break;
-
-                    // When Cast voting event is pushed from Web						
-                    case "CastVote":
-                        limitS = "1";
-                        try
-                        {
-                            CallerAddr   = (byte[]) args[0];
-                            name         = (string) args[1];
-                        }
-                        catch(FormatException e)
-                        {
-                            return e;
-                        }
-                        VoteEnabled = IsVotingEnabled(voting);
-                        VoteLimit = CheckVoteLimit(CallerAddr, name, voting);
-                        if (VoteEnabled && VoteLimit)
-                        {
-                            CastVote(CallerAddr, name);
-                        }
-                        break;
-
-                    // When voting limit needs to be set by user
-                    case "SetLimit":
-                        VoteEnabled = IsVotingEnabled(voting);
-                        try
-                        {
-                            CallerAddr = (byte[]) args[0];
-                            limitS     = (string) args[2];
-                        }
-                        catch(FormatException e)
-                        {
-                            return e;
-                        }
-                        if (VoteEnabled)
-                        {
-                            SetLimit(voting, limitS, CallerAddr);
-                        }
-                        break;
-
-                    // Fetching the results of the vote
-                    case "GetResults":
-                        try
-                        {
-                            CallerAddr = (byte[]) args[0];
-                            name       = (string) args[1];
-                        }
-                        catch (FormatException e)
-                        {
-                          return e;
-                        }
-                        VoteEnabled = IsVotingEnabled(voting);
-
-                        if (!VoteEnabled)
-                        {
-                            return GetResults(name);
-                        }
-                        break;
-
+                    case "ResultsPoll":
+                        Votes = ResultsPoll(string OwnerAdd, string PollID);
+                        strArray[0] = OwnerAdd;
+                        strArray[1] = PollID;
+                        strArray[2] = Question;
+                        Votes[0]=strArray[3].lenght - 1;
+                        Votes[1]=strArray[4].lenght - 1;
+                        return Votes;
                     default:
                         break;
-
                 }
             }
             return "Success";
         }
 
-        // Start the voting process
-        public static void StartVote(string VotingFlag, string voting, string limitS, byte[] CallerAddr)
+        //Create the poll
+        // POLLMASTER = OwnerAdd+PollID
+        // POLLMASTERINFO/POLLMASTERVOTES = Works like a unique numberID for the SC, each time we get a data, 
+        // we will only got from the one that we want
+        public static void CreatePoll(string OwnerAdd, string Question)
         {
-            bool Authority = CheckAuth(CallerAddr);
-            if (Authority)
-            {
-                Storage.Put(Storage.CurrentContext, voting, VotingFlag.Serialize());
-                SetLimit(voting, limitS, CallerAddr);
+            string PollInfo;
+            string PollMasterInfo;
+            string PollVotes;
+            string PollID = "0";
+            OwnerAdd = OwnerAdd + "/";   // OWNERADD = 0x1234/
+            PollMasterInfo = string.Concat(OwnerAdd,PollID); //PollMasterINFO = 0x1234/0
+            //Generate a PoolID
+            Storage.Get(Storage.CurrentContext, PollInfo, PollMasterInfo){
+            	while(PollInfo != null){
+            		Random r = new Random();
+					int rInt = r.Next(0, 1000);
+					PollID =(string) rInt;
+            	}
+            	PollID = PollID + "/"; // PollId= 0/
+            	PollInfo = string.Concat(string.Concat(OwnerAdd,PollID),Question); // PollInfo= 0x1234/0/Do you like code
+            	Storage.Put(Storage.CurrentContext, PollInfo, PollMasterInfo ); // [PollMasterInfo:0x1234/0/Do you like code]
+            	PollInfo =string.Concat(OwnerAdd,PollID); // PollInfo= 0x1234/0/
+            	//For count, we will do lenght -1
+            	PollVotes = PollInfo + "A/B"; // PollVotes= 0x1234/0/A/B
+            	PollMasterVotes = PollMasterInfo+"votes";  // PollMasterVotes = 0x1234/0votes
+            	Storage.Put(Storage.CurrentContest, PollVotes, PollMasterVotes); //[PollMasterVotes:0x1234/0/A/B]
+            	return PollID;
             }
+
         }
 
-        // End the voting process
-        public static void EndVote(string VotingFlag, string voting, byte[] CallerAddr)
+        //Access to the poll
+        public static string[] AccessPoll(string OwnerAdd, string PollID)
         {
-            bool Authority = CheckAuth(CallerAddr);
-            if (Authority)
-            {
-                Storage.Put(Storage.CurrentContext, voting, VotingFlag.Serialize());
+            string PollInfo;
+            string[] PollInfoA;
+            string PollMasterInfo;
+            OwnerAdd = OwnerAdd + "/";
+            PollMasterInfo = string.Concat(OwnerAdd,PollID); 
+            PollInfo=Encoding.ASCII.GetBytes(Storage.Get(Storage.CurrentContext, PollMasterInfo));
+            
+            return PollInfoA;
+        }
+
+        //Poll Voting
+        public static void VotePoll(string OwnerAdd, string PollID, string VoteOption)
+        {
+            string PollVotes;
+            string[] PollVotesA;
+            string PollMasterVotes;
+            OwnerAdd = OwnerAdd + "/";	//    OWNERADD = '0x1234/'
+            PollID = PollID + "votes"; // PollID = 0votes
+            PollMasterVotes = string.Concat(OwnerAdd,PollID); //  POLLMASTERVOTES='0x1234/0votes'
+            PollVotes=Encoding.ASCII.GetBytes(Storage.Get(Storage.CurrentContext, PollMasterVotes ));  // POLLVOTES='0x1234/0/AAA/BB'
+            PollVotesA = PollVotes.Split("/"); //POLLVOTESA = ['0X1234','0','AAA','BB']
+            //PollVotesA[0]=OwnerAdd
+            //PollVotesA[1]=PollID
+            //PollVotesA[2]=VotesA 
+            //PollVotesA[3]=VotesB
+            OwnerAdd = PollVotesA[0];
+            OwnerAdd = OwnerAdd + "/";
+            PollID = PollVotesA[1];
+            PollID = PollID + "/";
+            VotesA = PollVotesA[2];
+            VotesB = PollVotesA[3];
+
+            if(VoteOption =="A"){
+                VotesA = VotesA+"A";
+                VotesA = VotesA+"/";
+                PollVotes = string.Concat(VotesA,VotesB);
+                PollVotes = string.Concat(string.Concat(OwnerAdd,PollID),PollVotes);
+                Storage.Put(Storage.CurrentContext, PollVotes, PollMasterVotes );
+
             }
-        }
-
-        // Record the votes casted by each user
-        public static void CastVote(byte[] CallerAddr, string name)
-        {
-            // Get the number of votes for the category
-            uint numberofvotes   = (uint) Storage.Get(Storage.CurrentContext, name).Deserialize();
-            numberofvotes++;
-
-            // Get the number of votes done by individual
-            uint IndividualVote  = (uint) Storage.Get(Storage.CurrentContext, CallerAddr).Deserialize();
-            IndividualVote++; 
-
-            // Save the value in persistant storage 
-            Storage.Put(Storage.CurrentContext, name, numberofvotes.Serialize());
-            Storage.Put(Storage.CurrentContext, CallerAddr, IndividualVote.Serialize());
-        }
-
-        // Set the number of voting limit for each person
-        public static void SetLimit(string voting, string VotingLimit, byte[] CallerAddr)
-        {
-            bool Authority = CheckAuth(CallerAddr);
-            if (Authority)
-            {
-                Storage.Put(Storage.CurrentContext, voting, VotingLimit.Serialize());
+            if(VoteOption =="B"){
+                VotesB = VotesB+"B";
+                VotesA= VotesA+"/"
+                PollVotes = string.Concat(VotesA,VotesB);
+                PollVotes = string.Concat(string.Concat(OwnerAdd,PollID),PollVotes);
+                Storage.Put(Storage.CurrentContext, PollVotes,PollMasterVotes );
             }
+            //IF the VoteOption is != of A|B we dont need to call Storage.Put
+            
+        }
+        //Get Results of the Poll
+        public static string[] ResultsPoll(string OwnerAdd, string PollID)
+        {
+            string PollResults;
+            string[] PollResultsA = new string[3];
+            string PollMasterVotes;
+            OwnerAdd = OwnerAdd + "/";
+            PollMasterVotes = string.Concat(OwnerAdd,PollID);
+            PollResults=Encoding.ASCII.GetBytes(Storage.Get(Storage.CurrentContext, PollMasterVotes));
+            PollResultsA = PollResults.Split("/");
+            //PollResultsA[0]=OwnerAdd
+            //PollResultsA[1]=PollID
+            //PollResultsA[2]=VotesA 
+            //PollResultsA[3]=VotesB
+            return PollResultsA;
         }
 
-        // Check if the voting has started or not
-        public static bool IsVotingEnabled(string voting)
-        {
-            uint VotingStarted = (uint) Storage.Get(Storage.CurrentContext, voting).Deserialize();
-            if (VotingStarted == 1) 
-              return true;
-            else
-              return false;
-        }
-
-        // Check if the user has crossed his voting limit 
-        public static bool CheckVoteLimit(byte[] CallerAddr, string name, string voting)
-        {
-            uint VoteCap       = (uint) Storage.Get(Storage.CurrentContext, voting).Deserialize();
-            uint numberofvotes = (uint) Storage.Get(Storage.CurrentContext, CallerAddr).Deserialize();
-            if (numberofvotes >= VoteCap)
-                return false;
-            else
-                return true;
-        }
-
-        // return the results of the poll
-        public static string GetResults(string name)
-        {
-            return (string) Storage.Get(Storage.CurrentContext, name).Deserialize();
-        }
-
-        // Check if the person is authorized to change the limits
-        public static bool CheckAuth(byte[] CallerAddr)
-        {
-            if (Runtime.CheckWitness(OwnerAddr) == Runtime.CheckWitness(CallerAddr))
-               return true;
-            else
-               return false;
-        }
     }
 
 }
