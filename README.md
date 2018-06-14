@@ -1,11 +1,14 @@
 # [Polling Application - NOS]
+# What is nOSpoll?
+nOSpoll is a DApp created to utilize the NEO blockchain as a decision making tool for organizations, using a blockchain for public polls would be most desirable as these decision-making requires trust and a publicly verifiable and transparent system. 
+
 
 # Prerequisites
 You should have node and npm installed in your system.
 After install npm, need to install GULP following this steps:
  * run `npm install gulp-cli -g`
  * run `npm install gulp -D`
- * Check if its installed with `gulp --help`
+ * Check if its installed with `gulp --help`  
 
 # Download and Installation
 
